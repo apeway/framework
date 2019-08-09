@@ -1,0 +1,8 @@
+
+1、序列化与反序列化直接用现有的就好，没必要再写吧。
+	org.springframework.util.SerializationUtils
+	org.apache.commons.lang3.SerializationUtils
+	org.apache.commons.lang.SerializationUtils
+	甚至可以用jackson的ObjectMapper
+	
+2、

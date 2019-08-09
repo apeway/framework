@@ -1,0 +1,13 @@
+URL url = Abc.class.getResource(fileClassPath);
+if(url != null) {
+	InputStream is = new FileInputStream(Abc.class.getResource(fileClassPath).getPath());
+}
+
+InputStream is = Abc.class.getResourceAsStream(fileClassPath);
+
+InputStream is = null;
+Reader reader = new InputStreamReader(is, charset);
+reader = new BufferedReader(reader); 
+
+----------------
+jvm参数获取: System.getProperty("propName")

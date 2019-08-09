@@ -1,0 +1,25 @@
+<bean id="ds" class="test.datasource.JtaDataSource">
+	&lt;!&ndash;
+	<property name="uniqueResourceName" value="framework-datasource"/>
+	<property name="user" value="${jdbc.username}" />
+	<property name="password" value="${jdbc.mima}" />
+	<property name="url" value="${jdbc.url}" />
+	<property name="driverClassName" value="${jdbc.driverClassName}" />
+	<property name="poolSize" value="10" />
+	<property name="loginTimeout" value="50" /> &ndash;&gt;
+	<property name="username" value="${jdbc.username}" />
+	<property name="password" value="${jdbc.mima}" />
+	<property name="url" value="${jdbc.url}" />
+	<property name="driver" value="${jdbc.driverClassName}" />
+	<property name="poolMaximumActiveConnections" value="10" />
+	<property name="poolMaximumIdleConnections" value="5" />
+	<property name="poolPingEnabled" value="true" />
+	<property name="poolPingQuery" value="select 100 as pingResult" />
+	<property name="poolPingConnectionsNotUsedFor" value="60000" />
+</bean>
+
+<property id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+	<property name="configLocation"
+		value="classpath: .....mybatis-config.xml" />
+	<property name="dataSource" ref="ds" />
+</property>
