@@ -1,0 +1,224 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop" xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+       xmlns:repository="http://www.springframework.org/schema/data/repository"
+       xmlns:cache="http://www.springframework.org/schema/cache"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd
+		http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.2.xsd
+		http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa.xsd
+        http://www.springframework.org/schema/data/repository http://www.springframework.org/schema/data/repository/spring-repository.xsd
+        http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd"
+       default-lazy-init="false">
+
+
+    <context:annotation-config/>
+    <bean name="propertyPlaceholderConfigurer" class="com.yonyoucloud.bq.framework.spring.BQPropertyPlaceholderConfigurer">
+        <property name="location" value="#{systemProperties['bq_config']}/serverConfig.properties"/>
+    </bean>
+
+    <!-- 使用annotation 自动注册bean, 并保证@Required、@Autowired的属性被注入 -->
+    <context:component-scan base-package="com.yonyoucloud.bq"/>
+    <!--        <context:exclude-filter type="annotation"
+                                    expression="org.springframework.stereotype.Controller"/>
+            <context:exclude-filter type="annotation"
+                                    expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+        </context:component-scan>-->
+
+
+    <!-- start 校验配置 -->
+    <mvc:annotation-driven validator="validator" />
+    <bean id="resourceBundleMessageSource"
+          class="com.yonyoucloud.bq.framework.i18n.BQResourceBundleMessageSource"/>
+    <bean id="i18MessageHandler" class="com.yonyoucloud.bq.framework.i18n.I18MessageHandlerImp"/>
+    <bean id="validator"
+          class="org.springframework.validation.beanvalidation.OptionalValidatorFactoryBean">
+        <property name="providerClass" value="org.hibernate.validator.HibernateValidator"/>
+        <property name="validationMessageSource" ref="messageSource"/>
+    </bean>
+    <bean id="validateErrorHandler"
+          class="com.yonyoucloud.bq.framework.validator.ValidateErrorHandler"/>
+    <!-- end校验配置 -->
+
+
+    <!-- start 数据源和JPA的配置 -->
+    <bean id="dataSource" class="com.yonyoucloud.bq.framework.repository.BQRepoDataSource"/>
+
+    <bean id="entityManagerFactory"
+          class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="loadTimeWeaver">
+            <bean
+                    class="org.springframework.instrument.classloading.InstrumentationLoadTimeWeaver"/>
+        </property>
+        <property name="sharedCacheMode" value="NONE"/>
+        <property name="packagesToScan">
+            <array>
+                <value>com.yonyoucloud.**.vo</value>
+            </array>
+        </property>
+
+        <property name="jpaPropertyMap">
+            <map>
+                <entry key="hibernate.dialect" value="${jdbc.dialect}"/>
+                <entry key="hibernate.show_sql" value="${jdbc.showSql}"/>
+                <entry key="hibernate.format_sql" value="false"/>
+                <entry key="hibernate.use_sql_comments" value="false"/>
+                <entry key="hibernate.use_outer_join" value="true"/>
+                <entry key="hibernate.default_batch_fetch_size" value="30"/>
+                <entry key="hibernate.max_fetch_depth" value="3"/>
+                <entry key="hibernate.hbm2ddl.auto" value="${jdbc.hbm2ddl.auto}"/>
+                <entry key="hibernate.generate_statistics" value="true"/>
+                <entry key="hibernate.bytecode.use_reflection_optimizer" value="true"/>
+                <entry key="hibernate.cache.use_second_level_cache" value="false"/>
+                <entry key="hibernate.cache.use_query_cache" value="false"/>
+            </map>
+        </property>
+        <property name="jpaVendorAdapter">
+            <bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter"/>
+        </property>
+    </bean>
+    <!-- end 数据源和JPA的配置 -->
+
+    <!-- start 事务配置 -->
+    <bean id="hibernateJpaDialect" class="org.springframework.orm.jpa.vendor.HibernateJpaDialect"/>
+    <bean id="txManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+        <property name="entityManagerFactory" ref="entityManagerFactory"/>
+        <property name="dataSource" ref="dataSource"/>
+        <property name="jpaDialect" ref="hibernateJpaDialect"/>
+    </bean>
+    <bean id="transactionalAdvice"
+          class="com.yonyoucloud.bq.framework.transactional.BQTransactionalAdvice"/>
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+    <aop:config>
+        <aop:aspect id="concurrentOperationRetry" ref="transactionalAdvice">
+            <aop:pointcut id="servicePointcut"
+                          expression="@within(org.springframework.stereotype.Service)"/>
+            <aop:around pointcut-ref="servicePointcut" method="aroundService"/>
+        </aop:aspect>
+    </aop:config>
+    <!-- end 事务配置-->
+
+    <bean id="sessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="typeAliasesPackage" value="com.fan.entity"/>
+    </bean>
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.yonyoucloud.bq.**.mapper"/>
+    </bean>
+
+    <jpa:repositories base-package="com.yonyoucloud.bq.**.dao" repository-impl-postfix="DAO"
+                      entity-manager-factory-ref="entityManagerFactory"
+                      query-lookup-strategy="create-if-not-found"
+                      base-class="com.yonyoucloud.bq.framework.dao.BaseDAOImpl" transaction-manager-ref="txManager">
+        <repository:exclude-filter type="regex" expression="com\.yonyoucloud\.bq\.framework\.dao\.IBaseDAO"/>
+    </jpa:repositories>
+
+    <bean class="com.yonyoucloud.bq.framework.spring.SpringContextHolder"
+          lazy-init="false"/>
+    <bean class="com.yonyoucloud.bq.framework.cache.CacheManager" lazy-init="false"/>
+
+
+   <!--  <bean name="multipartResolver"
+          class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+          <property name="defaultEncoding" value="utf-8"/>
+    </bean> -->
+
+
+    <!-- 缓存监控器设置 -->
+    <bean id="entityManagerHolder" class="com.yonyoucloud.bq.framework.spring.EntityManagerHolder"/>
+
+
+    <!-- 自动扫描且只扫描@Controller -->
+    <!--    <context:component-scan base-package="com.yonyou" use-default-filters="false">
+            <context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+            <context:include-filter type="annotation" expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+        </context:component-scan>-->
+
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="true">
+            <!-- 将StringHttpMessageConverter的默认编码设为UTF-8 -->
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <constructor-arg value="UTF-8"/>
+            </bean>
+            <!-- 将Jackson2HttpMessageConverter的默认格式化输出设为true -->
+            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+                <property name="prettyPrint" value="true"/>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+
+    <!-- spring自己的缓存管理器，这里定义了缓存位置名称 ，即注解中的value -->
+    <bean id="cacheManager" class="com.yonyoucloud.bq.framework.cache.spring.SpringCacheManager"/>
+    <bean id="keyGenerator" class="com.yonyoucloud.bq.framework.cache.spring.SpringCacheKeyGenerator"/>
+    <bean id="errorHandler" class="com.yonyoucloud.bq.framework.cache.spring.SpringCacheErrorHandler"/>
+    <bean id="cacheResolver" class="com.yonyoucloud.bq.framework.cache.spring.SpringCacheResolver">
+        <constructor-arg ref="cacheManager"/>
+    </bean>
+
+    <cache:annotation-driven cache-manager="cacheManager" key-generator="keyGenerator" error-handler="errorHandler" cache-resolver="cacheResolver"/>
+
+    <!--end spring cache -->
+
+    <!-- 调度工厂 -->
+    <bean id="quartzScheduler"
+          class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="quartzProperties">
+            <props>
+                <prop key="org.quartz.scheduler.instanceName">BQ-Scheduler</prop>
+                <prop key="org.quartz.scheduler.instanceId">AUTO</prop>
+                <!-- 线程池配置-->
+                <prop key="org.quartz.threadPool.class">org.quartz.simpl.SimpleThreadPool</prop>
+                <prop key="org.quartz.threadPool.threadCount">${scheduler.threadCount}</prop>
+                <prop key="org.quartz.threadPool.threadPriority">5</prop>
+                <!--JobStore 配置-->
+                <prop key="org.quartz.jobStore.class">org.quartz.impl.jdbcjobstore.JobStoreTX</prop>
+                <prop key="org.quartz.jobStore.driverDelegateClass">
+                    #{('${jdbc.url}' matches '^jdbc:postgresql://([^/@:]+):(\d+)/([^/@:=;]+)(.*)') ? 'org.quartz.impl.jdbcjobstore.PostgreSQLDelegate' : 'org.quartz.impl.jdbcjobstore.StdJDBCDelegate'}
+                </prop>
+
+                <!--集群配置-->
+                <prop key="org.quartz.jobStore.isClustered">${scheduler.isClustered}</prop>
+                <prop key="org.quartz.jobStore.clusterCheckinInterval">12000</prop>
+                <prop key="org.quartz.jobStore.maxMisfiresToHandleAtATime">1</prop>
+
+                <prop key="org.quartz.jobStore.misfireThreshold">120000</prop>
+
+                <prop key="org.quartz.jobStore.tablePrefix">SCHD_</prop>
+            </props>
+
+        </property>
+
+        <property name="schedulerName" value="BQ-Scheduler" />
+
+        <!--必须的，QuartzScheduler 延时启动，应用启动完后 QuartzScheduler 再启动-->
+        <property name="startupDelay" value="${scheduler.startupDelay}" />
+
+        <property name="applicationContextSchedulerContextKey" value="applicationContextKey" />
+
+        <!--可选，QuartzScheduler 启动时更新己存在的Job，这样就不用每次修改targetObject后删除qrtz_job_details表对应记录了-->
+        <property name="overwriteExistingJobs" value="true" />
+
+        <!--设置自动启动-->
+        <property name="autoStartup" value="${scheduler.start}" />
+
+        <property name="schedulerListeners">
+            <bean class="com.yonyoucloud.bq.framework.schedule.listener.BQScheduleListener"/>
+        </property>
+    </bean>
+
+    <bean class="com.yonyoucloud.bq.framework.schedule.service.InitScheduleService">
+        <property name="scheduleInitJobList">
+            <list>
+
+            </list>
+        </property>
+    </bean>
+    <!-- end scheduler -->
+</beans>
